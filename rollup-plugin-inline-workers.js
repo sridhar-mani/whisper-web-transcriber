@@ -6,13 +6,13 @@ export default function inlineWorkers() {
     name: 'inline-workers',
     transform(code, id) {
       if (id.endsWith('src/index.ts')) {
-        // Read worker files
-        const workerCode = fs.readFileSync(path.resolve('./libstream.worker.js'), 'utf8');
-        const helpersCode = fs.readFileSync(path.resolve('./helpers.js'), 'utf8');
-        const libstreamCode = fs.readFileSync(path.resolve('./libstream.js'), 'utf8');
-        const coiServiceWorkerCode = fs.readFileSync(path.resolve('./coi-serviceworker.js'), 'utf8');
         
-        // Create the injection code
+          const workerPath = id.replace(/\/src\/index\.ts$/, '/src/libstream.worker.js');
+          const workerCode = fs.readFileSync(workerPath, 'utf8');
+          const helpersCode = fs.readFileSync(path.resolve('./src/helpers.js'), 'utf8');
+          const libstreamCode = fs.readFileSync(path.resolve('./src/libstream.js'), 'utf8');
+          const coiServiceWorkerCode = fs.readFileSync(path.resolve('./src/coi-serviceworker.js'), 'utf8');
+        
         const injection = `
 // Inlined worker and helper files
 window.LIBSTREAM_WORKER_CODE = ${JSON.stringify(workerCode)};
