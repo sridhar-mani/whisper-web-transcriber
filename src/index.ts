@@ -120,27 +120,8 @@ Current Status:
   }
 
   private getScriptBasePath(): string {
-    // Check if we're running from node_modules
-    const scriptTags = document.getElementsByTagName('script');
-    for (let i = 0; i < scriptTags.length; i++) {
-      const src = scriptTags[i].src;
-      if (src.includes('whisper-web-transcriber')) {
-        const basePath = src.substring(0, src.lastIndexOf('/') + 1);
-        return basePath;
-      }
-    }
-    
-    // Try to detect if we're in development mode
-    if (window.location.hostname === 'localhost') {
-      if (window.location.pathname.includes('/demo/')) {
-        return '../dist/';
-      }
-      // Check if loaded from node_modules
-      return '/node_modules/whisper-web-transcriber/dist/';
-    }
-    
-    // Default to unpkg CDN for production
-    return 'https://unpkg.com/whisper-web-transcriber/dist/';
+    // Always use local src/ directory for all assets
+    return '/src/';
   }
 
   private async createWorkerFromURL(url: string): Promise<Worker> {
