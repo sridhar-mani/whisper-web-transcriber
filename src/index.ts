@@ -120,7 +120,14 @@ Current Status:
   }
 
   private getScriptBasePath(): string {
-    // Always use local src/ directory for all assets
+    try {
+      const chromeRuntime = (window as any).chrome?.runtime;
+      if (chromeRuntime && typeof chromeRuntime.getURL === 'function') {
+        return chromeRuntime.getURL('whisper-assets/');
+      }
+    } catch (e) {
+      // ignore and fall back to default
+    }
     return '/src/';
   }
 
@@ -165,7 +172,7 @@ Current Status:
       }
     }
     
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       // Configure Module before the script loads
       (window as any).Module = {
         locateFile: (path: string) => {
@@ -215,15 +222,27 @@ Current Status:
         const scriptBlob = new Blob([(window as any).LIBSTREAM_CODE], { type: 'application/javascript' });
         const scriptUrl = URL.createObjectURL(scriptBlob);
         const script = document.createElement('script');
+        
         script.src = scriptUrl;
         script.onerror = () => reject(new Error('Failed to load WASM module'));
         document.head.appendChild(script);
       } else {
-        // Load the WASM module dynamically
-        const script = document.createElement('script');
-        script.src = this.getScriptBasePath() + 'libstream.js';
-        script.onerror = () => reject(new Error('Failed to load WASM module'));
-        document.head.appendChild(script);
+      try {
+          const basePath = this.getScriptBasePath();
+          const response = await fetch(basePath + 'libstream.js');
+          const code = await response.text();
+          
+          // Force the correct MIME type via Blob
+          const blob = new Blob([code], { type: 'text/javascript' });
+          const blobUrl = URL.createObjectURL(blob);
+          
+          const script = document.createElement('script');
+          script.src = blobUrl; // Load from memory, bypassing extension MIME headers
+          script.onerror = () => reject(new Error('Failed to load WASM module'));
+          document.head.appendChild(script);
+        } catch (error) {
+          reject(new Error('Failed to fetch/blobify libstream.js: ' + error));
+        }
       }
     });
   }
@@ -244,40 +263,52 @@ Current Status:
       });
     } else {
       // Load helpers.js normally
-      const script = document.createElement('script');
-      script.src = this.getScriptBasePath() + 'helpers.js';
-      
-      return new Promise((resolve, reject) => {
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Failed to load helpers'));
-        document.head.appendChild(script);
-      });
+     try {
+        const basePath = this.getScriptBasePath();
+        const response = await fetch(basePath + 'helpers.js');
+        const code = await response.text();
+        const blob = new Blob([code], { type: 'text/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const script = document.createElement('script');
+        script.src = blobUrl;
+        
+        return new Promise((resolve, reject) => {
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load helpers via Blob'));
+          document.head.appendChild(script);
+        });
+      } catch (error) {
+        throw new Error('MIME bypass failed for helpers.js: ' + error);
+      }
     }
   }
 
   private async loadCOIServiceWorker(): Promise<void> {
-    // Check if SharedArrayBuffer is already available
-    if (typeof SharedArrayBuffer !== 'undefined') {
-      this.log('SharedArrayBuffer already available');
-      return;
-    }
+try {
+      const basePath = this.getScriptBasePath();
+      const response = await fetch(basePath + 'coi-serviceworker.js');
+      const code = await response.text();
+      const blob = new Blob([code], { type: 'text/javascript' });
+      const blobUrl = URL.createObjectURL(blob);
 
-    // Try to load coi-serviceworker.js
-    const basePath = this.getScriptBasePath();
-    const script = document.createElement('script');
-    script.src = basePath + 'coi-serviceworker.js';
-    
-    return new Promise((resolve) => {
-      script.onload = () => {
-        this.log('COI service worker loaded');
-        resolve();
-      };
-      script.onerror = () => {
-        this.log('Failed to load COI service worker - SharedArrayBuffer may not be available');
-        resolve(); // Continue anyway
-      };
-      document.head.appendChild(script);
-    });
+      const script = document.createElement('script');
+      script.src = blobUrl;
+      
+      return new Promise((resolve) => {
+        script.onload = () => {
+          this.log('COI service worker loaded via Blob');
+          resolve();
+        };
+        script.onerror = () => {
+          this.log('Failed to load COI service worker via Blob');
+          resolve(); 
+        };
+        document.head.appendChild(script);
+      });
+    } catch (error) {
+      this.log('MIME bypass failed for COI script: ' + error);
+    }
   }
 
   async initialize(): Promise<void> {
